@@ -1,0 +1,106 @@
+name: KinD e2e tests
+
+on:
+  pull_request:
+    branches: [ 'main' ]
+
+  push:
+    branches: [ 'main' ]
+
+defaults:
+  run:
+    shell: bash
+    working-directory: ./src/knative.dev/net-kourier
+
+jobs:
+  e2e-tests:
+    name: e2e tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # Keep running if one leg fails.
+      matrix:
+        k8s-version:
+        - v1.26.x
+        - v1.27.x
+        - v1.28.x
+
+        gateway:
+        - quay.io/maistra-dev/proxyv2-ubi8:2.4-latest
+        - docker.io/envoyproxy/envoy:v1.25-latest
+        - docker.io/envoyproxy/envoy:v1.26-latest
+
+        upstream-tls:
+        - plain
+        - tls
+
+    env:
+      GOPATH: ${{ github.workspace }}
+      KO_DOCKER_REPO: kind.local
+      # Use a semi-random cluster suffix, but somewhat predictable
+      # so reruns don't just give us a completely new value.
+      CLUSTER_SUFFIX: c${{ github.run_id }}.local
+
+    steps:
+    - name: Set up Go 1.21.x
+      uses: actions/setup-go@v4
+      with:
+        go-version: 1.21.x
+
+    - uses: ko-build/setup-ko@v0.6
+
+    - name: Check out code onto GOPATH
+      uses: actions/checkout@v3
+      with:
+        path: ./src/knative.dev/net-kourier
+
+    - name: Setup KinD
+      uses: chainguard-dev/actions/setup-kind@main
+      with:
+        k8s-version: ${{ matrix.k8s-version }}
+        kind-worker-count: 1
+        cluster-suffix: "${CLUSTER_SUFFIX}"
+
+    - name: Deploy certificates for upstream traffic
+      if: matrix.upstream-tls == 'tls'
+      run: |
+        set -o pipefail
+        echo ">> Deploy certificate for upstream traffic"
+        ./test/generate-upstream-cert.sh
+
+    - name: Install Knative net-kourier
+      run: |
+        set -o pipefail
+
+        # Build and Publish our containers to the docker daemon (including test assets)
+        ko resolve -f test/config/ -f config/ | \
+          sed "s|docker.io/envoyproxy/envoy:.*|${{ matrix.gateway }}|" | \
+          kubectl apply -f -
+
+    - name: Wait for Ready
+      run: |
+        echo Waiting for Pods to become ready.
+        # # TODO: Find a good way to do this with chaos enabled.
+        # kubectl wait pod --for=condition=Ready -n ${GATEWAY_NAMESPACE_OVERRIDE} -l '!job-name'
+        kubectl wait pod --timeout 300s --for=condition=Ready -n knative-serving -l '!job-name'
+
+        # For debugging.
+        kubectl get pods --all-namespaces
+
+    - name: Run e2e Tests
+      run: |
+        ./test/e2e-kind.sh
+
+    - name: Post failure notice to Slack
+      uses: rtCamp/action-slack-notify@v2.1.0
+      if: ${{ failure() && github.event_name != 'pull_request' }}
+      env:
+        SLACK_ICON: http://github.com/knative.png?size=48
+        SLACK_USERNAME: github-actions
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+
+        SLACK_CHANNEL: 'net-kourier'
+        SLACK_COLOR: '#8E1600'
+        MSG_MINIMAL: 'true'
+        SLACK_TITLE: Periodic ${{ matrix.k8s-version }} failed.
+        SLACK_MESSAGE: |
+          For detailed logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
