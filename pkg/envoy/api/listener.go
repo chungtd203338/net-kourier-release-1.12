@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -39,17 +38,19 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
+	"knative.dev/net-kourier/pkg/bonalib"
 	"knative.dev/net-kourier/pkg/config"
 	"knative.dev/net-kourier/pkg/region"
 )
 
+var _ = bonalib.Baka()
 var regions = region.InitRegions()
 var mode = region.Mode()
 
@@ -139,15 +140,20 @@ func NewHTTPListener(manager []*hcm.HttpConnectionManager, port uint32, enablePr
 			Filters: filters[0],
 		})
 	} else {
-		home := homedir.HomeDir()
-		config, err := clientcmd.BuildConfigFromFlags("", filepath.Join(home, ".kube", "config"))
-		// config, err := rest.InClusterConfig()
+		// home := homedir.HomeDir()
+		// config, err := clientcmd.BuildConfigFromFlags("", filepath.Join(home, ".kube", "config"))
+		config, err := rest.InClusterConfig()
 		if err != nil {
 			panic(err.Error())
 		}
 		clientset, err := kubernetes.NewForConfig(config)
 		if err != nil {
 			panic(err.Error())
+		}
+
+		nodes, err := clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			panic(err)
 		}
 		var ipamBlockList IPAMBlockList
 		filterChainMatch := make([]*listener.FilterChainMatch, len(regions)+1)
@@ -159,7 +165,7 @@ func NewHTTPListener(manager []*hcm.HttpConnectionManager, port uint32, enablePr
 				Do(context.TODO()).
 				Into(&ipamBlockList)
 		})
-
+		nodeip := []corev1.NodeAddress{}
 		for i := 0; i < len(regions); i++ {
 			filterChainMatch[i] = &listener.FilterChainMatch{
 				SourceType:         0,
@@ -167,6 +173,19 @@ func NewHTTPListener(manager []*hcm.HttpConnectionManager, port uint32, enablePr
 			}
 			for key, value := range regions[i] {
 				if key == "label" {
+					var numberNodes = 0
+					for j := 0; j < len(nodes.Items); j++ {
+						if nodes.Items[j].Name == value {
+							numberNodes = numberNodes + 1
+							nodeip = nodes.Items[j].Status.Addresses
+						}
+					}
+					for k := 0; k < numberNodes; k++ {
+						filterChainMatch[i].SourcePrefixRanges = append(filterChainMatch[i].SourcePrefixRanges, &core.CidrRange{
+							AddressPrefix: nodeip[k].Address,
+							PrefixLen:     wrapperspb.UInt32(32),
+						})
+					}
 					for _, item := range ipamBlockList.Items {
 						if item.Spec.Affinity != nil && strings.Contains(*item.Spec.Affinity, value) {
 							ip, ipNet, err := net.ParseCIDR(item.Spec.CIDR)
@@ -188,7 +207,7 @@ func NewHTTPListener(manager []*hcm.HttpConnectionManager, port uint32, enablePr
 			})
 		}
 	}
-
+	// bonalib.Log("listener", _listener)
 	return _listener, nil
 }
 

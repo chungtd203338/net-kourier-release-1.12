@@ -33,7 +33,7 @@ koBuild() {
 convertImage() {
     message="change image from docker to crictl" && logInfo
     image=$(docker images | grep ko.local | grep $component | grep latest | awk '{print $1}'):latest
-    docker rmi -f chung123abc/net-1.12-new-$component1:latest
+    docker rmi -f chung123abc/net-1.12-new-$component:latest
     docker image tag $image docker.io/chung123abc/net-1.12-new-$component:latest
     docker rmi $image
     image=$(docker images | grep ko.local | grep $component | awk '{print $1}'):$(docker images | grep ko.local | grep $component | awk '{print $2}')

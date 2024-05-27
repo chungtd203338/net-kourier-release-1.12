@@ -35,6 +35,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"knative.dev/net-kourier/pkg/bonalib"
 	pkgconfig "knative.dev/net-kourier/pkg/config"
 	envoy "knative.dev/net-kourier/pkg/envoy/api"
 	"knative.dev/net-kourier/pkg/reconciler/ingress/config"
@@ -46,6 +47,8 @@ import (
 	"knative.dev/pkg/logging"
 	"knative.dev/pkg/tracker"
 )
+
+var _ = bonalib.Baka()
 
 // func percentage(number int) []int {
 // 	var a []int
@@ -227,6 +230,8 @@ func (translator *IngressTranslator) translateIngress(ctx context.Context, ingre
 				} else {
 					// For all other types, fetch the endpoints object.
 					endpoints, err := translator.endpointsGetter(split.ServiceNamespace, split.ServiceName)
+					// bonalib.Log("endpoints", len(endpoints.Subsets[0].Addresses))
+
 					if apierrors.IsNotFound(err) {
 						logger.Warnf("Endpoints '%s/%s' not yet created", split.ServiceNamespace, split.ServiceName)
 						// TODO(markusthoemmes): Find out if we should actually `continue` here.
@@ -273,7 +278,9 @@ func (translator *IngressTranslator) translateIngress(ctx context.Context, ingre
 						clusters = append(clusters, cluster)
 						wrs[0] = append(wrs[0], envoy.NewWeightedCluster(splitName, uint32(split.Percent), split.AppendHeaders))
 					} else {
-						percent := [3]int{1, 1, 98}
+
+						percent := [3]int{1, 50, 49}
+
 						for i := 0; i < len(regions); i++ {
 							for key, value := range regions[i] {
 								if key == "name" {
@@ -286,6 +293,7 @@ func (translator *IngressTranslator) translateIngress(ctx context.Context, ingre
 						}
 					}
 				} else {
+
 					for i := 0; i < len(regions); i++ {
 						for key, value := range regions[i] {
 							if key == "name" {
@@ -529,7 +537,7 @@ func lbEndpointsForKubeEndpoints(kubeEndpoints *corev1.Endpoints, targetPort int
 		return nil
 	}
 
-	if check == 0 {
+	if check == 0 && mode == 1 {
 		eps := make([][]*endpoint.LbEndpoint, len(regions)+1)
 		for _, subset := range kubeEndpoints.Subsets {
 			for _, address := range subset.Addresses {
@@ -552,6 +560,7 @@ func lbEndpointsForKubeEndpoints(kubeEndpoints *corev1.Endpoints, targetPort int
 				}
 			}
 		}
+		// bonalib.Log("ok", kubeEndpoints.Subsets)
 		return eps
 	}
 	// eps := make([][]*endpoint.LbEndpoint, len(regions)+1)

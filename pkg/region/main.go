@@ -3,15 +3,13 @@ package region
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	_ "net/http/pprof"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
+	"k8s.io/client-go/rest"
 )
 
 func InitRegions() []map[string]string {
@@ -19,30 +17,30 @@ func InitRegions() []map[string]string {
 		{
 			"id":    "0",
 			"name":  "region1",
-			"label": "master",
+			"label": "node1",
 		},
 		{
 			"id":    "1",
 			"name":  "region2",
-			"label": "worker1",
+			"label": "node2",
 		},
 		{
 			"id":    "2",
 			"name":  "region3",
-			"label": "worker2",
+			"label": "node3",
 		},
 	}
 }
 
 func Mode() int {
-	return 1
+	return 2
 }
 
 func Check() int {
 	x := 0
-	// config, err := rest.InClusterConfig()
-	home := homedir.HomeDir()
-	config, err := clientcmd.BuildConfigFromFlags("", filepath.Join(home, ".kube", "config"))
+	config, err := rest.InClusterConfig()
+	// home := homedir.HomeDir()
+	// config, err := clientcmd.BuildConfigFromFlags("", filepath.Join(home, ".kube", "config"))
 	if err != nil {
 		panic(err.Error())
 	}

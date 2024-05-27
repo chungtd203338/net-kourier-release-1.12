@@ -19,7 +19,6 @@ package generator
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"sync"
 
@@ -37,11 +36,14 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	kubeclient "k8s.io/client-go/kubernetes"
+	"knative.dev/net-kourier/pkg/bonalib"
 	"knative.dev/net-kourier/pkg/config"
 	envoy "knative.dev/net-kourier/pkg/envoy/api"
 	rconfig "knative.dev/net-kourier/pkg/reconciler/ingress/config"
 	"knative.dev/pkg/system"
 )
+
+var _ = bonalib.Baka()
 
 const (
 	envCertsSecretNamespace    = "CERTS_SECRET_NAMESPACE"
@@ -250,7 +252,7 @@ func (caches *Caches) ToEnvoySnapshot(ctx context.Context) (*cache.Snapshot, err
 			resource.ListenerType: listeners,
 		},
 	)
-	fmt.Println("ok", _snapshot)
+	bonalib.Log("snapshot", _snapshot)
 	return _snapshot, err
 }
 
