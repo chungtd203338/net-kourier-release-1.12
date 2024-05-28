@@ -199,6 +199,7 @@ func (caches *Caches) ToEnvoySnapshot(ctx context.Context) (*cache.Snapshot, err
 			for i := 0; i < len(regions); i++ {
 				localVHosts[i] = append(localVHosts[i], translatedIngress.internalVirtualHosts[i]...)
 				externalVHosts[i] = append(externalVHosts[i], translatedIngress.externalVirtualHosts[i]...)
+				// bonalib.Log("ok", localVHosts[i])
 				externalTLSVHosts[i] = append(externalTLSVHosts[i], translatedIngress.externalTLSVirtualHosts[i]...)
 
 			}
@@ -337,7 +338,7 @@ func generateListenersAndRouteConfigsAndClusters(
 	internalManager := make([]*httpconnmanagerv3.HttpConnectionManager, len(regions)+1)
 
 	if mode == 1 {
-		externalRouteConfig[0] = envoy.NewRouteConfig(externalRouteConfigName, externalTLSVirtualHosts[0])
+		externalRouteConfig[0] = envoy.NewRouteConfig(externalRouteConfigName, externalVirtualHosts[0])
 		externalTLSRouteConfig[0] = envoy.NewRouteConfig(externalTLSRouteConfigName, externalTLSVirtualHosts[0])
 		internalRouteConfig[0] = envoy.NewRouteConfig(internalRouteConfigName, clusterLocalVirtualHosts[0])
 		externalManager[0] = envoy.NewHTTPConnectionManager(externalRouteConfig[0].Name, cfg.Kourier)
@@ -345,7 +346,7 @@ func generateListenersAndRouteConfigsAndClusters(
 		internalManager[0] = envoy.NewHTTPConnectionManager(internalRouteConfig[0].Name, cfg.Kourier)
 	} else {
 		for i := 0; i < len(regions); i++ {
-			externalRouteConfig[i] = envoy.NewRouteConfig(externalRouteConfigNameMode[i], externalTLSVirtualHosts[i])
+			externalRouteConfig[i] = envoy.NewRouteConfig(externalRouteConfigNameMode[i], externalVirtualHosts[i])
 			externalTLSRouteConfig[i] = envoy.NewRouteConfig(externalTLSRouteConfigNameMode[i], externalTLSVirtualHosts[i])
 			internalRouteConfig[i] = envoy.NewRouteConfig(internalRouteConfigNameMode[i], clusterLocalVirtualHosts[i])
 			externalManager[i] = envoy.NewHTTPConnectionManager(externalRouteConfig[i].Name, cfg.Kourier)

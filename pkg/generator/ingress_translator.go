@@ -156,6 +156,7 @@ func (translator *IngressTranslator) translateIngress(ctx context.Context, ingre
 	clusters := make([]*v3.Cluster, 0, len(ingress.Spec.Rules))
 
 	for i, rule := range ingress.Spec.Rules {
+		// bonalib.Log("rule", rule.)
 		ruleName := fmt.Sprintf("(%s/%s).Rules[%d]", ingress.Namespace, ingress.Name, i)
 
 		// routes := make([]*route.Route, 0, len(rule.HTTP.Paths))
@@ -393,8 +394,9 @@ func (translator *IngressTranslator) translateIngress(ctx context.Context, ingre
 		} else {
 			for i := 0; i < len(regions); i++ {
 				internalHosts[i] = append(internalHosts[i], virtualHost[i])
+				externalHosts[i] = append(externalHosts[i], virtualHost[i])
+
 				if rule.Visibility == v1alpha1.IngressVisibilityExternalIP {
-					externalHosts[i] = append(externalHosts[i], virtualHost[i])
 					if virtualTLSHost != nil {
 						externalTLSHosts[i] = append(externalTLSHosts[i], virtualTLSHost)
 					}
